@@ -13,7 +13,7 @@ from configs.log_config import logger, get_logger
 import torch
 from langchain.llms.base import LLM
 from transformers import AutoTokenizer, AutoModel
-from langchain.llms.utils import enforce_stop_tokens
+from langchain_community.llms.utils import enforce_stop_tokens
 
 
 class DeepSeek(LLM):
