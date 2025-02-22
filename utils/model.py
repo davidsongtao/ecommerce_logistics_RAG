@@ -330,36 +330,3 @@ class LocalLLM:
                 torch.cuda.empty_cache()
         except Exception as e:
             self.logger.error(f"Error during cleanup: {str(e)}")
-
-
-if __name__ == "__main__":
-    try:
-        # 测试代码
-        model_path = "/root/autodl-tmp/ecommerce_logistics_RAG/models/DeepSeek_R1_Distill_Qwen_7B"
-        llm = LocalLLM(model_path)
-
-        prompt = "你好，地球是圆的么？"
-        print(f"User: {prompt}")
-        print("Assistant: ", end="", flush=True)
-
-        # 流式输出测试
-        for text in llm.generate_stream(prompt):
-            print(text, end="", flush=True)
-            sys.stdout.flush()
-            time.sleep(0.02)
-        print("\n")
-
-    except ModelLoadError as e:
-        print(f"Model failed to load: {e}")
-        print(f"Details: {e.to_dict()}")
-
-    except ModelGenerateError as e:
-        print(f"Generation failed: {e}")
-        print(f"Details: {e.to_dict()}")
-
-    except ModelResourceError as e:
-        print(f"Resource error: {e}")
-        print(f"Details: {e.to_dict()}")
-
-    except Exception as e:
-        print(f"Unexpected error: {e}")
