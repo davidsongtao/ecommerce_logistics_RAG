@@ -2,32 +2,18 @@
 Description: 对/utils/model.py脚本进行测试
     
 -*- Encoding: UTF-8 -*-
-@File     ：test_model.py.py
+@File     ：test_model.py
 @Author   ：King Songtao
 @Time     ：2025/2/22 下午1:51
 @Contact  ：king.songtao@gmail.com
 """
-"""
-Description: DeepSeek模型测试文件
-
--*- Encoding: UTF-8 -*-
-@File     ：test_model.py
-@Author   ：King Songtao
-@Time     ：2025/2/22 下午12:52
-@Contact  ：king.songtao@gmail.com
-"""
-
 import os
 import pytest
-import torch
-from typing import Optional
 from utils.model import DeepSeek
 
-# 配置测试模型路径（请替换为实际可用的模型路径）
-MODEL_PATH = os.environ.get(
-    'DEEPSEEK_MODEL_PATH',
-    'models/DeepSeek_R1_Distill_Qwen_32B'
-)
+# 使用项目根目录下的模型路径
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+MODEL_PATH = os.path.join(PROJECT_ROOT, 'models', 'DeepSeek_R1_Distill_Qwen_32B')
 
 
 # 辅助函数：检查模型路径是否可用
@@ -72,16 +58,18 @@ def test_load_model_invalid_path():
     测试加载无效模型路径时的异常处理
     """
     model = DeepSeek()
-    invalid_paths = [
-        "/path/to/non_existent_model",
-        "",
-        None
-    ]
 
-    for path in invalid_paths:
-        with pytest.raises((FileNotFoundError, TypeError),
-                           message=f"应对无效路径 {path} 抛出异常"):
-            model.load_model(path)
+    # 测试None路径
+    with pytest.raises(TypeError, match="模型路径不能为None"):
+        model.load_model(None)
+
+    # 测试空字符串路径
+    with pytest.raises(FileNotFoundError, match="模型路径不能为空"):
+        model.load_model("")
+
+    # 测试不存在的路径
+    with pytest.raises(FileNotFoundError, match="模型路径不存在"):
+        model.load_model("/path/to/non_existent_model")
 
 
 def test_model_inference(deepseek_model):
