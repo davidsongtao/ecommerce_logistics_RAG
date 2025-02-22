@@ -7,95 +7,52 @@ Description: 自定义大模型
 @Time     ：2025/2/22 下午12:52
 @Contact  ：king.songtao@gmail.com
 """
-import os
-from typing import Optional, List
-from configs.log_config import logger, get_logger
 import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from langchain.llms.base import LLM
-from transformers import AutoTokenizer, AutoModel
-from langchain_community.llms.utils import enforce_stop_tokens
+from typing import Optional, List
 
 
-class DeepSeek(LLM):
-    max_token: int = 4096
-    temperature: float = 0.8
-    top_p: float = 0.9
-    tokenizer: object = None
-    model: object = None
-    history: List[List[Optional[str]]] = []
-
-    def __init__(self):
+class DeepSeekLLM(LLM):
+    def __init__(self, model_name: str, device: str = "cuda"):
         super().__init__()
+        self._device = device
+        self._model_name = model_name
+        self._tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self._model = AutoModelForCausalLM.from_pretrained(model_name).to(self._device)
+
+        # 显式设置 pad_token_id 和 eos_token_id
+        if self._tokenizer.pad_token is None:
+            self._tokenizer.pad_token = self._tokenizer.eos_token
+            self._model.config.pad_token_id = self._model.config.eos_token_id
+
+    def _call(self, prompt: str, stop: Optional[List[str]] = None) -> str:
+        inputs = self._tokenizer(prompt, return_tensors="pt").to(self._device)
+        with torch.no_grad():
+            outputs = self._model.generate(
+                **inputs,
+                max_length=200,
+                temperature=0.7,
+                top_k=50,
+                top_p=0.9,
+                num_beams=5,
+                repetition_penalty=1.2,
+                do_sample=True,
+                early_stopping=True
+            )
+        return self._tokenizer.decode(outputs[0], skip_special_tokens=True)
 
     @property
     def _llm_type(self) -> str:
-        return "DeepSeek-R1-Distill-Qwen-32B"
+        return "deepseek_r1_distill_qwen_1.5b"
 
-    # 定义load_model方法，进行模型的加载
-    def load_model(self, model_path: Optional[str] = None):
-        """
-        加载模型
 
-        Args:
-            model_path (Optional[str], optional): 模型路径. Defaults to None.
+if __name__ == '__main__':
+    # 使用自定义的 LLM 类
+    model_name = r"D:\ecommerce_logistics_RAG\models\DeepSeek_R1_Distill_Qwen_1_5B"  # 替换为你的本地模型路径
+    llm = DeepSeekLLM(model_name=model_name, device="cuda")
 
-        Raises:
-            TypeError: 模型路径不是字符串
-            FileNotFoundError: 模型路径不存在
-        """
-        # 检查模型路径是否为None或空字符串
-        if model_path is None:
-            logger.error("模型路径不能为None")
-            raise TypeError("模型路径不能为None")
-
-        # 检查模型路径是否为字符串
-        if not isinstance(model_path, str):
-            logger.error(f"模型路径应为字符串，当前类型为：{type(model_path)}")
-            raise TypeError(f"模型路径应为字符串，当前类型为：{type(model_path)}")
-
-        # 检查模型路径是否为空字符串
-        if model_path.strip() == "":
-            logger.error("模型路径不能为空")
-            raise FileNotFoundError("模型路径不能为空")
-
-        # 检查模型路径是否存在
-        if not os.path.exists(model_path):
-            logger.error(f"模型路径不存在：{model_path}")
-            raise FileNotFoundError(f"模型路径不存在：{model_path}")
-
-        try:
-            # 记录模型加载信息
-            logger.info(f"开始加载模型：{model_path}")
-
-            self.tokenizer = AutoTokenizer.from_pretrained(model_path)
-            self.model = AutoModel.from_pretrained(
-                model_path,
-                torch_dtype=torch.float16,  # 使用半精度
-                device_map='auto'  # 自动分配显存
-            ).cuda()
-            logger.info(f"模型加载成功：{model_path}")
-        except Exception as e:
-            logger.error(f"模型加载失败：{model_path}")
-            logger.error(f"错误信息：{str(e)}")
-            raise
-
-    # 定义_call方法，进行模型的推理
-    def _call(self, prompt: str, stop: Optional[List[str]] = None):
-        try:
-            response, _ = self.model.chat(
-                self.tokenizer,
-                prompt,
-                history=self.history,
-                max_length=self.max_token,
-                top_p=self.top_p,
-                temperature=self.temperature,
-            )
-
-            if stop is not None:
-                response = enforce_stop_tokens(response, stop)
-
-            self.history = self.history + [[None, response]]
-            return response
-        except Exception as e:
-            logger.error(f"模型推理失败：{prompt}")
-            raise
+    # 进行推理
+    prompt = """你好。"""
+    response = llm.invoke(prompt)
+    print(response)
