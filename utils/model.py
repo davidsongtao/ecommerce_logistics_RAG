@@ -1,8 +1,8 @@
 """
-Description: 大模型
+Description: 自定义大模型
     
 -*- Encoding: UTF-8 -*-
-@File     ：model.py.py
+@File     ：model.py
 @Author   ：King Songtao
 @Time     ：2025/2/22 下午12:52
 @Contact  ：king.songtao@gmail.com
@@ -68,6 +68,7 @@ class DeepSeek(LLM):
 
             if stop is not None:
                 response = enforce_stop_tokens(response, stop)
+
             self.history = self.history + [[None, response]]
             return response
         except Exception as e:
