@@ -253,6 +253,7 @@ class ModelEvaluationRunner:
     def _save_json_results(self, results: List[Dict], file_path: str):
         """保存JSON格式结果"""
         try:
+            logger.info("正在生成文本报告...")
             with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(results, f, ensure_ascii=False, indent=2)
             logger.info(f"JSON结果已保存到: {file_path}")
@@ -262,6 +263,7 @@ class ModelEvaluationRunner:
     def _save_txt_report(self, results: List[Dict], file_path: str):
         """保存文本格式报告"""
         try:
+            logger.info("正在生成文本报告...")
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write("基座模型评测报告\n")
                 f.write("=" * 50 + "\n\n")
