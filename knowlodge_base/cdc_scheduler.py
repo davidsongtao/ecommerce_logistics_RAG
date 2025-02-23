@@ -66,6 +66,13 @@ class CDCScheduler:
     def _save_incremental_data(self, data: dict, timestamp: datetime.datetime):
         """保存增量数据"""
         try:
+            # 检查是否有有效数据
+            has_data = any(len(data_list) > 0 for data_list in data.values())
+
+            if not has_data:
+                logger.info(f"在 {timestamp} 未找到增量数据，跳过保存")
+                return
+
             # 按日期组织目录
             date_dir = self.output_dir / timestamp.strftime("%Y-%m-%d")
             date_dir.mkdir(exist_ok=True)
@@ -94,6 +101,10 @@ class CDCScheduler:
                 start_time=self.last_exec_time,
                 end_time=current_time
             )
+
+            # 打印详细的数据信息
+            for key, value in data.items():
+                logger.info(f"{key} 数据条数: {len(value)}")
 
             # 保存数据
             self._save_incremental_data(data, current_time)
