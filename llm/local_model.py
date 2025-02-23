@@ -206,10 +206,6 @@ class LocalLLM:
 
         Yields:
             生成的文本片段
-
-        Raises:
-            ModelGenerateError: 生成过程中的错误
-            ModelResourceError: 资源不足错误
         """
         self.logger.debug(f"生成流式响应，提示: {prompt[:50]}...")
 
@@ -239,12 +235,12 @@ class LocalLLM:
 
             # 生成参数
             gen_kwargs = {
-                **inputs,
                 "streamer": streamer,
                 "pad_token_id": self.tokenizer.pad_token_id,
                 "eos_token_id": self.tokenizer.eos_token_id,
                 **generation_config
             }
+            gen_kwargs.update(inputs)  # 将inputs合并到gen_kwargs中
 
             # 在后台线程中运行生成
             thread = Thread(target=self.model.generate, kwargs=gen_kwargs)
@@ -257,12 +253,15 @@ class LocalLLM:
 
             # 检查回答是否完整
             if not full_response.strip().endswith(("。", "!", "?", "！", "？", ".", "…")):
-                gen_kwargs["inputs"] = self.tokenizer(
+                # 构造后续生成的输入
+                continue_inputs = self.tokenizer(
                     full_response,
                     return_tensors="pt",
                     padding=True,
                     truncation=True
                 ).to(self.model.device)
+
+                gen_kwargs.update(continue_inputs)
                 gen_kwargs["max_new_tokens"] = 512
 
                 thread = Thread(target=self.model.generate, kwargs=gen_kwargs)
