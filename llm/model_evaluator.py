@@ -23,7 +23,7 @@ from evaluator_components import (
     StabilityEvaluator,
     QualityEvaluator
 )
-from evaluation_metrics import EvaluationResult
+from evaluation_metrics import EvaluationResult, PerformanceMetrics
 
 
 class ModelEvaluator:
@@ -74,56 +74,88 @@ class ModelEvaluator:
         Returns:
             评估结果
         """
-        self.logger.info("开始模型评估...")
+        try:
+            self.logger.info("开始模型评估...")
 
-        # 1. 性能评测
-        self.logger.info("正在评估性能指标...")
-        performance = self.performance_evaluator.evaluate_performance(model, test_cases)
+            # 1. 性能评测
+            self.logger.info("正在评估性能指标...")
+            performance = self.performance_evaluator.evaluate_performance(model, test_cases)
 
-        # 检查性能是否达标
-        if not self._check_performance(performance):
-            self.logger.warning("模型性能未达到要求，建议考虑其他模型")
-            return EvaluationResult(
-                performance=performance,
-                stability={},
-                quality={},
-                final_score={"total": 0.0}
+            # 检查性能是否达标
+            if not self._check_performance(performance):
+                self.logger.warning("模型性能未达到要求，建议考虑其他模型")
+                return EvaluationResult(
+                    performance=performance,
+                    stability={},
+                    quality={},
+                    final_score={"total": 0.0}
+                )
+
+            # 2. 稳定性评测
+            self.logger.info("正在评估稳定性...")
+            stability = self.stability_evaluator.evaluate_stability(
+                model,
+                test_cases,
+                self.num_stability_runs
             )
 
-        # 2. 稳定性评测
-        self.logger.info("正在评估稳定性...")
-        stability = self.stability_evaluator.evaluate_stability(
-            model,
-            test_cases,
-            self.num_stability_runs
+            # 3. 质量评测
+            self.logger.info("正在评估生成质量...")
+            quality = self.quality_evaluator.evaluate_quality(model, test_cases)
+
+            # 4. 计算综合得分
+            self.logger.info("正在计算综合得分...")
+            final_score = self._calculate_final_score(
+                performance=performance,
+                stability=stability,
+                quality=quality
+            )
+
+            # 5. 整合评估结果
+            result = EvaluationResult(
+                performance=performance,
+                stability=stability,
+                quality=quality,
+                final_score=final_score
+            )
+
+            # 6. 保存结果
+            if output_dir:
+                self._save_results(result, output_dir)
+
+            self.logger.info("模型评估完成!")
+            return result
+        except Exception as e:
+            self.logger.error(f"评估过程出错: {e}")
+            # 返回空结果
+            return EvaluationResult(
+                performance=PerformanceMetrics(
+                    inference_speed=0,
+                    memory_usage=0,
+                    gpu_memory=0,
+                    throughput=0,
+                    latency=0
+                ),
+                stability={},
+                quality={},
+                final_score={
+                    "average": {
+                        "final_score": 0.0,
+                        "performance_score": 0.0,
+                        "stability_score": 0.0,
+                        "quality_score": 0.0
+                    }
+                }
+            )
+
+    def _calculate_performance_score(self, performance: PerformanceMetrics) -> float:
+        """计算性能得分"""
+        thresholds = config.evaluation.thresholds
+        return (
+                (1 - performance.inference_speed / thresholds["max_inference_time"]) * 0.1 +
+                (1 - performance.memory_usage / thresholds["max_memory_usage"]) * 0.1 +
+                (performance.throughput / thresholds["min_throughput"]) * 0.1
         )
-
-        # 3. 质量评测
-        self.logger.info("正在评估生成质量...")
-        quality = self.quality_evaluator.evaluate_quality(model, test_cases)
-
-        # 4. 计算综合得分
-        self.logger.info("正在计算综合得分...")
-        final_score = self._calculate_final_score(
-            performance=performance,
-            stability=stability,
-            quality=quality
-        )
-
-        # 5. 整合评估结果
-        result = EvaluationResult(
-            performance=performance,
-            stability=stability,
-            quality=quality,
-            final_score=final_score
-        )
-
-        # 6. 保存结果
-        if output_dir:
-            self._save_results(result, output_dir)
-
-        self.logger.info("模型评估完成!")
-        return result
 
     def _check_performance(self, metrics: 'PerformanceMetrics') -> bool:
         """检查性能是否达标"""
