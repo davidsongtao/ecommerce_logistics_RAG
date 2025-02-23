@@ -11,17 +11,17 @@ import os
 import sys
 import time
 
-from utils.exceptions import ModelLoadError, ModelGenerateError, ModelResourceError
+from llm.exceptions import ModelLoadError, ModelGenerateError, ModelResourceError
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
-from utils.model import LocalLLM
+from llm.local_model import LocalLLM
 
 
 def main():
     try:
 
-        model_path = "/root/autodl-tmp/ecommerce_logistics_RAG/models/DeepSeek_R1_Distill_Qwen_7B"
+        model_path = "/root/autodl-tmp/ecommerce_logistics_RAG/models/DeepSeek_R1_Distill_Qwen_7B" if os.name == 'posix' else r"D:\ecommerce_logistics_RAG\models\DeepSeek_R1_Distill_Qwen_1_5B"
         llm = LocalLLM(model_path, show_log=False)
         while True:
             prompt = input("User >>> :")

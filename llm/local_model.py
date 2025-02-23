@@ -2,7 +2,7 @@
 Description: 本地大语言模型封装类
 
 -*- Encoding: UTF-8 -*-
-@File     ：model.py
+@File     ：local_model.py
 @Author   ：King Songtao
 @Time     ：2025/2/22 下午12:31
 @Contact  ：king.songtao@gmail.com
@@ -10,6 +10,12 @@ Description: 本地大语言模型封装类
 
 import os
 import sys
+import psutil
+import warnings
+import torch
+from threading import Thread
+from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
+from typing import Generator, Optional, Dict, Any, Union
 
 # 将项目根目录添加到系统路径
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -17,15 +23,9 @@ project_root = os.path.dirname(current_dir)
 if project_root not in sys.path:
     sys.path.append(project_root)
 
-from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
-from threading import Thread
-import torch
-import warnings
-from typing import Generator, Optional, Dict, Any, Union
-import time
-import psutil
 from configs.log_config import get_logger, configure_logging
-from utils.exceptions import ModelError, ModelLoadError, ModelGenerateError, ModelResourceError
+from llm.exceptions import ModelLoadError, ModelGenerateError, ModelResourceError
+from configs.config import default_config as cfg
 
 warnings.filterwarnings("ignore")
 
@@ -51,32 +51,27 @@ class LocalLLM:
         """
         # 基础配置
         self.model_path = model_path
-        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        self.dtype = dtype or torch.bfloat16
+        self.device = device or cfg.model.device
+        self.dtype = dtype or cfg.model.dtype
 
         # 生成配置
-        self.generation_config = {
-            "max_new_tokens": kwargs.get("max_new_tokens", 2048),
-            "do_sample": kwargs.get("do_sample", True),
-            "temperature": kwargs.get("temperature", 0.7),
-            "top_p": kwargs.get("top_p", 0.8),
-            "repetition_penalty": kwargs.get("repetition_penalty", 1.1),
-        }
+        self.generation_config = cfg.model.generation_config.copy()
+        self.generation_config.update(kwargs)
 
-        # 配置日志显示
+        # 配置日志
         configure_logging(show_log)
         self.logger = get_logger("model", show_log=show_log)
 
         try:
             if show_log:
-                self.logger.info(f"Initializing LocalLLM with model path: {model_path}")
+                self.logger.info(f"初始化LocalLLM，模型路径: {model_path}")
                 self._log_system_info()
 
             # 加载模型
             self._load_model()
 
         except Exception as e:
-            error_msg = f"Failed to initialize model: {str(e)}"
+            error_msg = f"模型初始化失败: {str(e)}"
             self.logger.error(error_msg)
             raise ModelLoadError(
                 message=error_msg,
@@ -87,20 +82,20 @@ class LocalLLM:
 
     def _log_system_info(self):
         """记录系统信息"""
-        self.logger.info(f"Using device: {self.device}")
+        self.logger.info(f"使用设备: {self.device}")
         if self.device == "cuda":
-            self.logger.info(f"CUDA device count: {torch.cuda.device_count()}")
-            self.logger.info(f"CUDA current device: {torch.cuda.current_device()}")
+            self.logger.info(f"CUDA设备数量: {torch.cuda.device_count()}")
+            self.logger.info(f"当前CUDA设备: {torch.cuda.current_device()}")
             for i in range(torch.cuda.device_count()):
                 prop = torch.cuda.get_device_properties(i)
-                self.logger.info(f"CUDA device {i}: {prop.name}, {prop.total_memory / 1e9:.2f}GB memory")
+                self.logger.info(f"CUDA设备 {i}: {prop.name}, {prop.total_memory / 1e9:.2f}GB 内存")
 
         system_info = {
-            "CPU cores": psutil.cpu_count(),
-            "Memory total": f"{psutil.virtual_memory().total / 1e9:.2f}GB",
-            "Memory available": f"{psutil.virtual_memory().available / 1e9:.2f}GB"
+            "CPU核心数": psutil.cpu_count(),
+            "总内存": f"{psutil.virtual_memory().total / 1e9:.2f}GB",
+            "可用内存": f"{psutil.virtual_memory().available / 1e9:.2f}GB"
         }
-        self.logger.info(f"System info: {system_info}")
+        self.logger.info(f"系统信息: {system_info}")
 
     def _get_memory_info(self) -> Dict[str, Any]:
         """获取内存使用信息"""
@@ -130,20 +125,24 @@ class LocalLLM:
 
     def _check_resources(self):
         """检查资源使用情况"""
+        # 检查GPU资源
         if self.device == "cuda":
             device_id = torch.cuda.current_device()
             total = torch.cuda.get_device_properties(device_id).total_memory
             allocated = torch.cuda.memory_allocated(device_id)
-            if allocated / total > 0.9:  # GPU 使用率超过 90%
+            if allocated / total > cfg.model.gpu_memory_threshold:
                 raise ModelResourceError(
-                    message="GPU memory usage too high",
+                    message="GPU内存使用率过高",
                     resource_type="gpu_memory",
                     resource_info=self._get_memory_info()
                 )
 
-        if psutil.virtual_memory().percent > 90:  # CPU 内存使用率超过 90%
+        # 检查系统内存
+        vm = psutil.virtual_memory()
+        available_memory_percent = vm.available / vm.total
+        if available_memory_percent < cfg.model.cpu_memory_threshold:
             raise ModelResourceError(
-                message="System memory usage too high",
+                message=f"系统可用内存不足(当前可用: {available_memory_percent:.1%})",
                 resource_type="system_memory",
                 resource_info=self._get_memory_info()
             )
@@ -151,7 +150,7 @@ class LocalLLM:
     def _load_model(self):
         """加载模型和分词器"""
         try:
-            self.logger.info("Loading tokenizer...")
+            self.logger.info("加载分词器...")
             self.tokenizer = AutoTokenizer.from_pretrained(
                 self.model_path,
                 trust_remote_code=True,
@@ -159,13 +158,13 @@ class LocalLLM:
             )
 
             if self.tokenizer.pad_token is None:
-                self.logger.debug("Setting pad_token...")
+                self.logger.debug("设置pad_token...")
                 self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
 
             # 检查资源
             self._check_resources()
 
-            self.logger.info("Loading model...")
+            self.logger.info("加载模型...")
             self.model = AutoModelForCausalLM.from_pretrained(
                 self.model_path,
                 trust_remote_code=True,
@@ -173,18 +172,18 @@ class LocalLLM:
                 device_map="auto" if self.device == "cuda" else None,
             )
 
-            self.logger.debug("Resizing token embeddings...")
+            self.logger.debug("调整token嵌入大小...")
             self.model.resize_token_embeddings(len(self.tokenizer))
 
             if self.device != "cuda":
-                self.logger.debug(f"Moving model to device: {self.device}")
+                self.logger.debug(f"将模型移动到设备: {self.device}")
                 self.model = self.model.to(self.device)
 
             self.model.eval()
-            self.logger.info("Model loaded successfully")
+            self.logger.info("模型加载成功")
 
         except Exception as e:
-            error_msg = f"Error loading model: {str(e)}"
+            error_msg = f"模型加载错误: {str(e)}"
             self.logger.error(error_msg)
             raise ModelLoadError(
                 message=error_msg,
@@ -212,7 +211,7 @@ class LocalLLM:
             ModelGenerateError: 生成过程中的错误
             ModelResourceError: 资源不足错误
         """
-        self.logger.debug(f"Generating stream response for prompt: {prompt[:50]}...")
+        self.logger.debug(f"生成流式响应，提示: {prompt[:50]}...")
 
         try:
             # 检查资源
@@ -273,7 +272,7 @@ class LocalLLM:
                     yield new_text
 
         except Exception as e:
-            error_msg = f"Error during stream generation: {str(e)}"
+            error_msg = f"流式生成错误: {str(e)}"
             self.logger.error(error_msg)
             raise ModelGenerateError(
                 message=error_msg,
@@ -305,14 +304,14 @@ class LocalLLM:
             ModelGenerateError: 生成过程中的错误
             ModelResourceError: 资源不足错误
         """
-        self.logger.info(f"Generating response for prompt: {prompt[:50]}...")
+        self.logger.info(f"生成响应，提示: {prompt[:50]}...")
         try:
             if stream:
                 return self.generate_stream(prompt, **kwargs)
             else:
                 return "".join(self.generate_stream(prompt, **kwargs))
         except Exception as e:
-            error_msg = f"Error during generation: {str(e)}"
+            error_msg = f"生成错误: {str(e)}"
             self.logger.error(error_msg)
             raise ModelGenerateError(
                 message=error_msg,
@@ -324,9 +323,9 @@ class LocalLLM:
     def __del__(self):
         """清理资源"""
         try:
-            self.logger.info("Cleaning up model resources...")
+            self.logger.info("清理模型资源...")
             # 清理 CUDA 缓存
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
         except Exception as e:
-            self.logger.error(f"Error during cleanup: {str(e)}")
+            self.logger.error(f"清理过程错误: {str(e)}")

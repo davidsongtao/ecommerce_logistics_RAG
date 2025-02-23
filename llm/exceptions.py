@@ -8,9 +8,10 @@ Description: 模型相关异常类定义
 @Contact  ：king.songtao@gmail.com
 """
 
-from typing import Optional, Any, Dict
 import traceback
 from datetime import datetime
+from typing import Optional, Any, Dict
+from configs.config import default_config as cfg
 
 
 class ModelError(Exception):
@@ -40,9 +41,10 @@ class ModelError(Exception):
         self.traceback = traceback.format_exc()
 
     def to_dict(self) -> Dict[str, Any]:
-        """将错误信息转换为字典格式，便于日志记录和API返回"""
+        """将错误信息转换为字典格式"""
         return {
             "error_code": self.error_code,
+            "error_desc": cfg.error.error_codes.get(self.error_code, self.error_code),
             "message": self.message,
             "timestamp": self.timestamp.isoformat(),
             "details": self.details,
@@ -51,8 +53,9 @@ class ModelError(Exception):
 
     def __str__(self) -> str:
         """提供友好的字符串表示"""
+        error_desc = cfg.error.error_codes.get(self.error_code, self.error_code)
         return (
-            f"[{self.error_code}] {self.message}\n"
+            f"[{self.error_code}] {error_desc}: {self.message}\n"
             f"Timestamp: {self.timestamp}\n"
             f"Details: {self.details}"
         )
@@ -109,8 +112,12 @@ class ModelGenerateError(ModelError):
             generation_info: Optional[Dict[str, Any]] = None,
             *args: object
     ) -> None:
+        # 截断过长的prompt
+        if prompt and len(prompt) > cfg.error.prompt_max_length:
+            prompt = prompt[:cfg.error.prompt_max_length] + "..."
+
         details = {
-            "prompt": prompt[:100] + "..." if prompt and len(prompt) > 100 else prompt,
+            "prompt": prompt,
             "generation_config": generation_config,
             "generation_info": generation_info
         }
