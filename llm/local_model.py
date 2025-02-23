@@ -2,42 +2,31 @@
 Description: 本地大语言模型封装类
 
 -*- Encoding: UTF-8 -*-
-@File     ：local_model.py
+@File     ：local_llm.py
 @Author   ：King Songtao
-@Time     ：2025/2/22 下午12:31
+@Time     ：2025/2/23
 @Contact  ：king.songtao@gmail.com
 """
 
-import os
-import sys
 import psutil
-import warnings
 import torch
 from threading import Thread
+from typing import Generator, Dict, Any, Optional
 from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
-from typing import Generator, Optional, Dict, Any, Union
 
-# 将项目根目录添加到系统路径
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
-if project_root not in sys.path:
-    sys.path.append(project_root)
-
-from configs.log_config import get_logger, configure_logging
-from llm.exceptions import ModelLoadError, ModelGenerateError, ModelResourceError
-from configs.config import default_config as cfg
-
-warnings.filterwarnings("ignore")
+from configs.config import config
+from configs.log_config import get_logger
+from exceptions import ModelLoadError, ModelGenerateError, ModelResourceError
 
 
 class LocalLLM:
+    """本地大语言模型封装类"""
+
     def __init__(
             self,
             model_path: str,
             device: Optional[str] = None,
             dtype: Optional[torch.dtype] = None,
-            show_log: bool = True,
-            **kwargs
     ):
         """
         初始化本地大语言模型
@@ -46,35 +35,19 @@ class LocalLLM:
             model_path: 模型路径
             device: 设备类型 ('cpu', 'cuda', 'cuda:0' 等)
             dtype: 模型精度类型
-            show_log: 是否显示日志
-            **kwargs: 其他参数，如生成配置
         """
-        # 基础配置
+        self.logger = get_logger("model")
         self.model_path = model_path
-        self.device = device or cfg.model.device
-        self.dtype = dtype or cfg.model.dtype
-
-        # 生成配置
-        self.generation_config = cfg.model.generation_config.copy()
-        self.generation_config.update(kwargs)
-
-        # 配置日志
-        configure_logging(show_log)
-        self.logger = get_logger("model", show_log=show_log)
+        self.device = device or config.model.device
+        self.dtype = dtype or config.model.dtype
 
         try:
-            if show_log:
-                self.logger.info(f"初始化LocalLLM，模型路径: {model_path}")
-                self._log_system_info()
-
-            # 加载模型
+            self.logger.info(f"初始化LocalLLM，模型路径: {model_path}")
+            self._log_system_info()
             self._load_model()
-
         except Exception as e:
-            error_msg = f"模型初始化失败: {str(e)}"
-            self.logger.error(error_msg)
             raise ModelLoadError(
-                message=error_msg,
+                message=f"模型初始化失败: {str(e)}",
                 model_path=model_path,
                 device=self.device,
                 memory_info=self._get_memory_info()
@@ -90,12 +63,12 @@ class LocalLLM:
                 prop = torch.cuda.get_device_properties(i)
                 self.logger.info(f"CUDA设备 {i}: {prop.name}, {prop.total_memory / 1e9:.2f}GB 内存")
 
-        system_info = {
-            "CPU核心数": psutil.cpu_count(),
-            "总内存": f"{psutil.virtual_memory().total / 1e9:.2f}GB",
-            "可用内存": f"{psutil.virtual_memory().available / 1e9:.2f}GB"
-        }
-        self.logger.info(f"系统信息: {system_info}")
+        self.logger.info(
+            "系统信息: "
+            f"CPU核心数={psutil.cpu_count()}, "
+            f"总内存={psutil.virtual_memory().total / 1e9:.2f}GB, "
+            f"可用内存={psutil.virtual_memory().available / 1e9:.2f}GB"
+        )
 
     def _get_memory_info(self) -> Dict[str, Any]:
         """获取内存使用信息"""
@@ -130,7 +103,7 @@ class LocalLLM:
             device_id = torch.cuda.current_device()
             total = torch.cuda.get_device_properties(device_id).total_memory
             allocated = torch.cuda.memory_allocated(device_id)
-            if allocated / total > cfg.model.gpu_memory_threshold:
+            if allocated / total > config.model.gpu_memory_threshold:
                 raise ModelResourceError(
                     message="GPU内存使用率过高",
                     resource_type="gpu_memory",
@@ -140,7 +113,7 @@ class LocalLLM:
         # 检查系统内存
         vm = psutil.virtual_memory()
         available_memory_percent = vm.available / vm.total
-        if available_memory_percent < cfg.model.cpu_memory_threshold:
+        if available_memory_percent < config.model.cpu_memory_threshold:
             raise ModelResourceError(
                 message=f"系统可用内存不足(当前可用: {available_memory_percent:.1%})",
                 resource_type="system_memory",
@@ -183,39 +156,44 @@ class LocalLLM:
             self.logger.info("模型加载成功")
 
         except Exception as e:
-            error_msg = f"模型加载错误: {str(e)}"
-            self.logger.error(error_msg)
             raise ModelLoadError(
-                message=error_msg,
+                message=f"模型加载错误: {str(e)}",
                 model_path=self.model_path,
                 device=self.device,
                 memory_info=self._get_memory_info()
             ) from e
 
-    def generate_stream(
+    def generate(
             self,
             prompt: str,
+            stream: bool = False,
             **kwargs
-    ) -> Generator[str, None, None]:
+    ) -> str | Generator[str, None, None]:
         """
-        流式生成回复
+        生成响应
 
         Args:
             prompt: 输入提示
-            **kwargs: 生成参数，会覆盖默认配置
+            stream: 是否使用流式输出
+            **kwargs: 生成参数
 
-        Yields:
-            生成的文本片段
+        Returns:
+            如果 stream=True，返回生成器；否则返回完整响应字符串
+
+        Raises:
+            ModelGenerateError: 生成过程中的错误
+            ModelResourceError: 资源不足错误
         """
-        self.logger.debug(f"生成流式响应，提示: {prompt[:50]}...")
-
+        self.logger.info(f"生成响应，提示: {prompt[:50]}...")
         try:
             # 检查资源
             self._check_resources()
 
-            # 更新生成参数
-            generation_config = self.generation_config.copy()
-            generation_config.update(kwargs)
+            # 合并生成参数
+            generation_config = {
+                **config.model.generation_params,
+                **kwargs
+            }
 
             # 构造输入
             inputs = self.tokenizer(
@@ -238,14 +216,34 @@ class LocalLLM:
                 "streamer": streamer,
                 "pad_token_id": self.tokenizer.pad_token_id,
                 "eos_token_id": self.tokenizer.eos_token_id,
-                **generation_config
+                **generation_config,
+                **inputs
             }
-            gen_kwargs.update(inputs)  # 将inputs合并到gen_kwargs中
 
             # 在后台线程中运行生成
             thread = Thread(target=self.model.generate, kwargs=gen_kwargs)
             thread.start()
 
+            if stream:
+                return self._stream_output(streamer, thread)
+            else:
+                return "".join(self._stream_output(streamer, thread))
+
+        except Exception as e:
+            raise ModelGenerateError(
+                message=f"生成错误: {str(e)}",
+                prompt=prompt,
+                generation_config=kwargs,
+                generation_info=self._get_memory_info()
+            ) from e
+
+    def _stream_output(
+            self,
+            streamer: TextIteratorStreamer,
+            thread: Thread
+    ) -> Generator[str, None, None]:
+        """处理流式输出"""
+        try:
             full_response = ""
             for new_text in streamer:
                 full_response += new_text
@@ -261,8 +259,11 @@ class LocalLLM:
                     truncation=True
                 ).to(self.model.device)
 
-                gen_kwargs.update(continue_inputs)
-                gen_kwargs["max_new_tokens"] = 512
+                gen_kwargs = {
+                    **continue_inputs,
+                    "max_new_tokens": 512,
+                    "streamer": streamer
+                }
 
                 thread = Thread(target=self.model.generate, kwargs=gen_kwargs)
                 thread.start()
@@ -270,54 +271,8 @@ class LocalLLM:
                 for new_text in streamer:
                     yield new_text
 
-        except Exception as e:
-            error_msg = f"流式生成错误: {str(e)}"
-            self.logger.error(error_msg)
-            raise ModelGenerateError(
-                message=error_msg,
-                prompt=prompt,
-                generation_config=generation_config,
-                generation_info=self._get_memory_info()
-            ) from e
         finally:
             thread.join()
-
-    def generate(
-            self,
-            prompt: str,
-            stream: bool = False,
-            **kwargs
-    ) -> Union[str, Generator[str, None, None]]:
-        """
-        生成回复的便捷方法
-
-        Args:
-            prompt: 输入提示
-            stream: 是否使用流式输出
-            **kwargs: 生成参数
-
-        Returns:
-            如果 stream=True，返回生成器；否则返回完整回复字符串
-
-        Raises:
-            ModelGenerateError: 生成过程中的错误
-            ModelResourceError: 资源不足错误
-        """
-        self.logger.info(f"生成响应，提示: {prompt[:50]}...")
-        try:
-            if stream:
-                return self.generate_stream(prompt, **kwargs)
-            else:
-                return "".join(self.generate_stream(prompt, **kwargs))
-        except Exception as e:
-            error_msg = f"生成错误: {str(e)}"
-            self.logger.error(error_msg)
-            raise ModelGenerateError(
-                message=error_msg,
-                prompt=prompt,
-                generation_config=kwargs,
-                generation_info=self._get_memory_info()
-            ) from e
 
     def __del__(self):
         """清理资源"""

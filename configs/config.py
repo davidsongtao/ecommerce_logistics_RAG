@@ -1,146 +1,145 @@
 """
-Description: 项目全集参数配置文件
-    
+Description: 统一的配置管理系统
+
 -*- Encoding: UTF-8 -*-
-@File     ：config.py.py
+@File     ：config.py
 @Author   ：King Songtao
-@Time     ：2025/2/23 上午8:51
+@Time     ：2025/2/23
 @Contact  ：king.songtao@gmail.com
 """
+
 import os
 from pathlib import Path
-import torch
 from typing import Dict, Any, Optional
-import logging
+from dataclasses import dataclass, field
+import torch
 
 
-class BaseConfig:
-    """配置基类"""
-
-    def to_dict(self) -> Dict[str, Any]:
-        """将配置转换为字典格式"""
-        return {
-            key: str(value) if isinstance(value, Path) else value
-            for key, value in self.__dict__.items()
-            if not key.startswith('_')
-        }
-
-
-class LogConfig(BaseConfig):
+@dataclass
+class LoggingConfig:
     """日志配置"""
-
-    def __init__(self):
-        # 日志格式
-        self.log_format = (
-            "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
-            "<level>{level: <8}</level> | "
-            "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
-            "<level>{message}</level>"
-        )
-
-        # 日志基础设置
-        self.default_level = "DEBUG"
-        self.show_log = True
-
-        # 日志文件设置
-        self.rotation = "2 hours"
-        self.retention = "10 days"
-        self.compression = "zip"
+    # 日志级别
+    level: str = "DEBUG"
+    # 日志格式
+    format: str = (
+        "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
+        "<level>{level: <8}</level> | "
+        "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
+        "<level>{message}</level>"
+    )
+    # 文件配置
+    rotation: str = "2 hours"
+    retention: str = "10 days"
+    compression: str = "zip"
+    # 控制台输出
+    show_console: bool = True
 
 
-class ModelConfig(BaseConfig):
+@dataclass
+class ModelConfig:
     """模型配置"""
+    # 设备配置
+    device: str = field(default_factory=lambda: "cuda" if torch.cuda.is_available() else "cpu")
+    dtype: torch.dtype = torch.bfloat16
 
-    def __init__(self):
-        # 设备配置
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.dtype = torch.bfloat16
+    # 生成参数
+    generation_params: Dict[str, Any] = field(default_factory=lambda: {
+        "max_new_tokens": 2048,
+        "do_sample": True,
+        "temperature": 0.6,
+        "top_p": 0.95,
+        "repetition_penalty": 1.1,
+    })
 
-        # 生成配置默认值
-        self.generation_config = {
-            "max_new_tokens": 2048,
-            "do_sample": True,
-            "temperature": 0.6,
-            "top_p": 0.95,
-            "repetition_penalty": 1.1,
-        }
-
-        # 资源监控阈值
-        self.gpu_memory_threshold = 0.85  # GPU使用率阈值(85%)
-        self.cpu_memory_threshold = 0.30  # CPU空闲内存阈值(30%)
+    # 资源阈值
+    gpu_memory_threshold: float = 0.85  # GPU使用率阈值(85%)
+    cpu_memory_threshold: float = 0.30  # CPU空闲内存阈值(30%)
 
 
-class ErrorConfig(BaseConfig):
-    """错误配置"""
+@dataclass
+class EvaluationConfig:
+    """评估配置"""
+    # 评分权重
+    weights: Dict[str, float] = field(default_factory=lambda: {
+        "relevance": 0.20,
+        "coverage": 0.15,
+        "consistency": 0.15,
+        "fluency": 0.15,
+        "grammar": 0.15,
+        "diversity": 0.10,
+        "coherence": 0.10
+    })
 
-    def __init__(self):
-        # 错误码
-        self.error_codes = {
-            "MODEL_LOAD_ERROR": "模型加载错误",
-            "MODEL_GENERATE_ERROR": "模型生成错误",
-            "MODEL_RESOURCE_ERROR": "模型资源错误"
-        }
+    # 评估阈值
+    thresholds: Dict[str, float] = field(default_factory=lambda: {
+        "min_total_score": 0.6,
+        "min_relevance": 0.7,
+        "min_coverage": 0.7,
+        "max_inference_time": 100,  # ms/token
+        "max_memory_usage": 16,  # GB
+        "max_gpu_memory": 12,  # GB
+        "min_throughput": 10,  # tokens/s
+        "max_latency": 1000  # ms
+    })
 
-        # 错误详情字段截断
-        self.prompt_max_length = 100  # 错误信息中prompt字段最大长度
 
+class AppConfig:
+    """应用配置管理器"""
+    _instance = None
 
-class LLMConfig:
-    """LLM配置管理"""
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._initialize()
+        return cls._instance
 
-    def __init__(self, env: str = "development"):
-        # 基础配置
-        self.env = env
-        self.is_development = env == "development"
-        self.is_production = env == "production"
+    def _initialize(self):
+        """初始化配置"""
+        # 项目根目录
+        self.project_root = Path(__file__).resolve().parent.parent
 
-        # 初始化子配置
-        self._log_config = LogConfig()
-        self._model_config = ModelConfig()
-        self._error_config = ErrorConfig()
+        # 子配置
+        self.logging = LoggingConfig()
+        self.model = ModelConfig()
+        self.evaluation = EvaluationConfig()
 
-        # 根据环境调整配置
-        self._setup_env_config()
+        # 加载环境变量
+        self._load_env_vars()
 
-    def _setup_env_config(self):
-        """根据环境配置参数"""
-        if self.is_production:
-            # 生产环境日志配置
-            self._log_config.default_level = "INFO"
+    def _load_env_vars(self):
+        """从环境变量加载配置"""
+        # 日志配置
+        if log_level := os.getenv("LOG_LEVEL"):
+            self.logging.level = log_level
 
-            # 生产环境模型配置
-            self._model_config.generation_config.update({
-                "temperature": 0.5,
-                "max_new_tokens": 1024
-            })
+        # 模型配置
+        if device := os.getenv("MODEL_DEVICE"):
+            self.model.device = device
 
-    @property
-    def log(self) -> LogConfig:
-        """获取日志配置"""
-        return self._log_config
-
-    @property
-    def model(self) -> ModelConfig:
-        """获取模型配置"""
-        return self._model_config
-
-    @property
-    def error(self) -> ErrorConfig:
-        """获取错误配置"""
-        return self._error_config
+        # 评估配置
+        if min_score := os.getenv("MIN_TOTAL_SCORE"):
+            self.evaluation.thresholds["min_total_score"] = float(min_score)
 
     def to_dict(self) -> Dict[str, Any]:
-        """导出所有配置"""
+        """导出配置"""
         return {
-            "environment": self.env,
-            "log_config": self.log.to_dict(),
-            "model_config": self.model.to_dict(),
-            "error_config": self.error.to_dict()
+            "project_root": str(self.project_root),
+            "logging": self.logging.__dict__,
+            "model": {
+                "device": self.model.device,
+                "dtype": str(self.model.dtype),
+                "generation_params": self.model.generation_params,
+                "thresholds": {
+                    "gpu_memory": self.model.gpu_memory_threshold,
+                    "cpu_memory": self.model.cpu_memory_threshold
+                }
+            },
+            "evaluation": {
+                "weights": self.evaluation.weights,
+                "thresholds": self.evaluation.thresholds
+            }
         }
 
 
 # 创建全局配置实例
-default_config = LLMConfig()
-
-# 创建生产环境配置实例
-production_config = LLMConfig(env="production")
+config = AppConfig()
