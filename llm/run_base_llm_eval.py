@@ -324,21 +324,57 @@ def main():
 
     # 待测试的参数组合
     params_list = [
-        {
-            "temperature": 0.3,
-            "top_p": 0.8,
-            "repetition_penalty": 1.1
-        },
-        {
-            "temperature": 0.5,
-            "top_p": 0.9,
-            "repetition_penalty": 1.0
-        },
-        {
-            "temperature": 0.7,
-            "top_p": 0.85,
-            "repetition_penalty": 1.2
-        }
+        {"temperature": 0.5, "top_p": 0.7, "repetition_penalty": 1.2},
+        {"temperature": 0.3, "top_p": 0.9, "repetition_penalty": 1.3},
+        {"temperature": 0.7, "top_p": 0.85, "repetition_penalty": 1.4},
+        {"temperature": 0.2, "top_p": 0.6, "repetition_penalty": 1.5},
+        {"temperature": 0.6, "top_p": 0.95, "repetition_penalty": 1.1},
+        {"temperature": 0.4, "top_p": 0.8, "repetition_penalty": 1.0},
+        {"temperature": 0.1, "top_p": 1.0, "repetition_penalty": 1.3},
+        {"temperature": 0.8, "top_p": 0.7, "repetition_penalty": 1.2},
+        {"temperature": 0.9, "top_p": 0.85, "repetition_penalty": 1.4},
+        {"temperature": 0.6, "top_p": 0.9, "repetition_penalty": 1.5},
+        {"temperature": 0.3, "top_p": 0.6, "repetition_penalty": 1.1},
+        {"temperature": 0.7, "top_p": 0.95, "repetition_penalty": 1.3},
+        {"temperature": 0.4, "top_p": 1.0, "repetition_penalty": 1.2},
+        {"temperature": 0.2, "top_p": 0.8, "repetition_penalty": 1.0},
+        {"temperature": 0.5, "top_p": 0.85, "repetition_penalty": 1.4},
+        {"temperature": 0.9, "top_p": 0.7, "repetition_penalty": 1.5},
+        {"temperature": 0.1, "top_p": 0.9, "repetition_penalty": 1.2},
+        {"temperature": 0.8, "top_p": 0.6, "repetition_penalty": 1.3},
+        {"temperature": 0.6, "top_p": 1.0, "repetition_penalty": 1.1},
+        {"temperature": 0.4, "top_p": 0.95, "repetition_penalty": 1.4},
+        {"temperature": 0.7, "top_p": 0.8, "repetition_penalty": 1.5},
+        {"temperature": 0.3, "top_p": 0.85, "repetition_penalty": 1.0},
+        {"temperature": 0.5, "top_p": 0.6, "repetition_penalty": 1.3},
+        {"temperature": 0.2, "top_p": 0.95, "repetition_penalty": 1.2},
+        {"temperature": 0.9, "top_p": 1.0, "repetition_penalty": 1.1},
+        {"temperature": 0.1, "top_p": 0.8, "repetition_penalty": 1.4},
+        {"temperature": 0.8, "top_p": 0.85, "repetition_penalty": 1.5},
+        {"temperature": 0.6, "top_p": 0.7, "repetition_penalty": 1.0},
+        {"temperature": 0.4, "top_p": 0.9, "repetition_penalty": 1.3},
+        {"temperature": 0.7, "top_p": 1.0, "repetition_penalty": 1.2},
+        {"temperature": 0.3, "top_p": 0.6, "repetition_penalty": 1.4},
+        {"temperature": 0.5, "top_p": 0.95, "repetition_penalty": 1.5},
+        {"temperature": 0.2, "top_p": 0.8, "repetition_penalty": 1.1},
+        {"temperature": 0.9, "top_p": 0.85, "repetition_penalty": 1.0},
+        {"temperature": 0.1, "top_p": 0.7, "repetition_penalty": 1.3},
+        {"temperature": 0.8, "top_p": 1.0, "repetition_penalty": 1.4},
+        {"temperature": 0.6, "top_p": 0.85, "repetition_penalty": 1.2},
+        {"temperature": 0.4, "top_p": 0.6, "repetition_penalty": 1.5},
+        {"temperature": 0.7, "top_p": 0.9, "repetition_penalty": 1.1},
+        {"temperature": 0.3, "top_p": 0.95, "repetition_penalty": 1.0},
+        {"temperature": 0.5, "top_p": 1.0, "repetition_penalty": 1.3},
+        {"temperature": 0.2, "top_p": 0.7, "repetition_penalty": 1.4},
+        {"temperature": 0.9, "top_p": 0.8, "repetition_penalty": 1.5},
+        {"temperature": 0.1, "top_p": 0.85, "repetition_penalty": 1.2},
+        {"temperature": 0.8, "top_p": 0.6, "repetition_penalty": 1.1},
+        {"temperature": 0.6, "top_p": 0.95, "repetition_penalty": 1.0},
+        {"temperature": 0.4, "top_p": 0.7, "repetition_penalty": 1.3},
+        {"temperature": 0.7, "top_p": 1.0, "repetition_penalty": 1.4},
+        {"temperature": 0.3, "top_p": 0.8, "repetition_penalty": 1.5},
+        {"temperature": 0.5, "top_p": 0.9, "repetition_penalty": 1.1},
+        {"temperature": 0.2, "top_p": 0.85, "repetition_penalty": 1.2}
     ]
 
     try:
