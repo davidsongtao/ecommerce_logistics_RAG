@@ -19,7 +19,7 @@ import torch
 class LoggingConfig:
     """日志配置"""
     # 日志级别
-    level: str = "DEBUG"
+    level: str = "INFO"
     # 日志格式
     format: str = (
         "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "

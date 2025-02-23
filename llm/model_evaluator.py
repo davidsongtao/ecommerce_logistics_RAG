@@ -32,7 +32,8 @@ class ModelEvaluator:
     def __init__(
             self,
             bert_model_name: str = "bert-base-chinese",
-            num_stability_runs: int = 5
+            num_stability_runs: int = 5,
+            show_log: bool = False
     ):
         """
         初始化评估系统
@@ -40,14 +41,19 @@ class ModelEvaluator:
         Args:
             bert_model_name: BERT模型名称
             num_stability_runs: 稳定性测试运行次数
+            show_log: 是否显示日志
         """
-        self.logger = get_logger("evaluator")
+        self.logger = get_logger("evaluator", show_log=show_log)
         self.num_stability_runs = num_stability_runs
 
-        # 初始化评估器组件
-        self.performance_evaluator = PerformanceEvaluator(bert_model_name)
-        self.stability_evaluator = StabilityEvaluator(bert_model_name)
-        self.quality_evaluator = QualityEvaluator(bert_model_name)
+        # 初始化基础评估器
+        self.logger.info("初始化评估器基础组件...")
+        self.base_evaluator = BaseEvaluator(bert_model_name)
+
+        # 初始化专门评估器组件，共享基础评估器的资源
+        self.performance_evaluator = PerformanceEvaluator(self.base_evaluator)
+        self.stability_evaluator = StabilityEvaluator(self.base_evaluator)
+        self.quality_evaluator = QualityEvaluator(self.base_evaluator)
 
         self.logger.info("模型评估系统初始化完成")
 
