@@ -111,8 +111,12 @@ class LogConfig:
                 f"{log_type}_logs_{{time:YYYY-MM-DD_HH-MM}}.log"
         )
 
-        # 移除之前的logger，防止重复添加
-        logger.remove()
+        # 移除所有现有的处理器
+        try:
+            logger.remove()
+        except ValueError:
+            # 如果没有处理器，remove()会抛出ValueError
+            pass
 
         if show_log:
             # 添加控制台输出处理器

@@ -30,10 +30,12 @@ import torch.nn.functional as F
 from scipy.stats import entropy
 from nltk.util import ngrams
 from tqdm import tqdm
-from configs.log_config import get_logger
+from configs.log_config import get_logger, configure_logging
 
-# 配置日志
-logger = get_logger("model_eval", show_log=True)
+# 首先配置全局日志显示
+configure_logging(show_log=True)
+# 使用相同的日志记录器
+logger = get_logger("evaluator", show_log=True)
 
 
 @dataclass
@@ -88,6 +90,7 @@ class ModelEvaluator:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.num_stability_runs = num_stability_runs
         self.batch_sizes = batch_sizes
+        self.logger = logger or get_logger("model_eval", show_log=True)
 
         # 设置默认性能阈值
         self.performance_thresholds = performance_thresholds or {
@@ -100,7 +103,7 @@ class ModelEvaluator:
         }
 
         # 初始化BERT模型
-        logger.info(f"正在加载BERT模型: {bert_model_name}")
+        self.logger.info(f"正在加载BERT模型: {bert_model_name}")
         self.tokenizer = AutoTokenizer.from_pretrained(bert_model_name)
         self.bert_model = AutoModel.from_pretrained(bert_model_name).to(self.device)
         self.bert_model.eval()
@@ -111,7 +114,7 @@ class ModelEvaluator:
         # 加载停用词
         self.stopwords = self._load_stopwords()
 
-        logger.info("评测器初始化完成")
+        self.logger.info("评测器初始化完成")
 
     def _load_stopwords(self) -> Set[str]:
         """加载停用词表"""
@@ -139,35 +142,35 @@ class ModelEvaluator:
         Returns:
             评估结果字典
         """
-        logger.info("开始模型评估...")
+        self.logger.info("开始模型评估...")
         start_time = time.time()
 
         results = {}
 
         # 1. 性能评测
-        logger.info("正在评估性能指标...")
+        self.logger.info("正在评估性能指标...")
         performance = self.evaluate_performance(model, test_cases)
         results["performance"] = performance
 
         # 检查性能是否达标
         if not self._check_performance(performance):
-            logger.warning("模型性能未达到要求，建议考虑其他模型")
+            self.logger.warning("模型性能未达到要求，建议考虑其他模型")
             return results
 
         # 2. 参数稳定性评测
-        logger.info("正在评估参数稳定性...")
+        self.logger.info("正在评估参数稳定性...")
         stability = self.evaluate_parameter_stability(
             model, test_cases, param_sets
         )
         results["stability"] = stability
 
         # 3. 质量评测
-        logger.info("正在评估生成质量...")
+        self.logger.info("正在评估生成质量...")
         quality = self.evaluate_quality(model, test_cases, param_sets)
         results["quality"] = quality
 
         # 4. 计算综合得分
-        logger.info("正在计算综合得分...")
+        self.logger.info("正在计算综合得分...")
         final_score = self.calculate_final_score(
             performance=performance,
             stability=stability,
@@ -180,7 +183,7 @@ class ModelEvaluator:
             self._save_results(results, output_dir)
 
         duration = time.time() - start_time
-        logger.info(f"评估完成! 耗时: {duration:.2f}秒")
+        self.logger.info(f"评估完成! 耗时: {duration:.2f}秒")
 
         return results
 
@@ -253,7 +256,7 @@ class ModelEvaluator:
                         output = model.generate(case["prompt"], **params)
                         outputs.append(output)
                     except Exception as e:
-                        logger.error(f"生成错误: {e}")
+                        self.logger.error(f"生成错误: {e}")
                         continue
 
                 if outputs:
@@ -292,7 +295,7 @@ class ModelEvaluator:
                     all_metrics.append(metrics)
 
                 except Exception as e:
-                    logger.error(f"评估错误: {e}")
+                    self.logger.error(f"评估错误: {e}")
                     continue
 
             if all_metrics:
@@ -444,7 +447,7 @@ class ModelEvaluator:
 
                 return similarity.item()
         except Exception as e:
-            logger.error(f"计算语义相似度错误: {e}")
+            self.logger.error(f"计算语义相似度错误: {e}")
             return 0.0
 
     def _evaluate_fluency(self, text: str) -> float:
@@ -486,7 +489,7 @@ class ModelEvaluator:
                 return np.mean(fluency_scores)
 
         except Exception as e:
-            logger.error(f"评估流畅度时出错: {e}")
+            self.logger.error(f"评估流畅度时出错: {e}")
             return 0.5
 
     def _evaluate_grammar(self, text: str) -> float:
@@ -511,7 +514,7 @@ class ModelEvaluator:
                 return min(max(grammar_score, 0), 1)
 
         except Exception as e:
-            logger.error(f"评估语法时出错: {e}")
+            self.logger.error(f"评估语法时出错: {e}")
             return 0.5
 
     def _evaluate_diversity(self, text: str) -> Dict[str, float]:
@@ -555,7 +558,7 @@ class ModelEvaluator:
             }
 
         except Exception as e:
-            logger.error(f"评估多样性时出错: {e}")
+            self.logger.error(f"评估多样性时出错: {e}")
             return {
                 "distinct_1": 0,
                 "distinct_2": 0,
@@ -569,7 +572,7 @@ class ModelEvaluator:
         try:
             return self._calculate_semantic_similarity(text, prompt)
         except Exception as e:
-            logger.error(f"评估相关性时出错: {e}")
+            self.logger.error(f"评估相关性时出错: {e}")
             return 0.5
 
     def _evaluate_coverage(self, text: str, prompt: str) -> float:
@@ -585,7 +588,7 @@ class ModelEvaluator:
             return coverage
 
         except Exception as e:
-            logger.error(f"评估覆盖度时出错: {e}")
+            self.logger.error(f"评估覆盖度时出错: {e}")
             return 0.5
 
     def _evaluate_consistency(self, text: str, prompt: str, context: str) -> float:
@@ -594,7 +597,7 @@ class ModelEvaluator:
             reference = prompt + " " + context if context else prompt
             return self._calculate_semantic_similarity(text, reference)
         except Exception as e:
-            logger.error(f"评估一致性时出错: {e}")
+            self.logger.error(f"评估一致性时出错: {e}")
             return 0.5
 
     def _evaluate_coherence(self, text: str) -> float:
@@ -615,7 +618,7 @@ class ModelEvaluator:
             return np.mean(coherence_scores)
 
         except Exception as e:
-            logger.error(f"评估连贯性时出错: {e}")
+            self.logger.error(f"评估连贯性时出错: {e}")
             return 0.5
 
     def _average_quality_metrics(
@@ -655,7 +658,7 @@ class ModelEvaluator:
         report_file = os.path.join(output_dir, f"evaluation_report_{timestamp}.txt")
         self._generate_report(results, report_file)
 
-        logger.info(f"评测结果已保存到: {output_dir}")
+        self.logger.info(f"评测结果已保存到: {output_dir}")
 
     def _generate_report(self, results: Dict, report_file: str):
         """生成评测报告"""

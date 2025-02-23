@@ -18,7 +18,9 @@ from llm.local_model import LocalLLM
 from llm.base_llm_eval import ModelEvaluator
 from configs.log_config import get_logger, configure_logging
 
-# 获取专门的评测日志记录器
+# 首先配置全局日志显示
+configure_logging(show_log=True)
+# 使用相同的日志记录器
 logger = get_logger("evaluator", show_log=True)
 
 
@@ -41,6 +43,7 @@ class ModelEvaluationRunner:
         """
         self.model_path = model_path
         self.output_dir = output_dir
+        self.logger = logger
 
         # 确保输出目录存在
         os.makedirs(output_dir, exist_ok=True)
