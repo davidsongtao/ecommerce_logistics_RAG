@@ -23,10 +23,10 @@ class TrainConfig():
         self.qwen2 = r"D:\ecommerce_logistics_RAG\models\Qwen2_5_0_5_B"
 
         # 模型训练超参数
-        self.batch_size = 1
+        self.batch_size = 16
         self.gradient_accumulation_steps = 4  # 梯度累积步数
         self.epochs = 10
-        self.learning_rate = 0.00000000000001
+        self.learning_rate = 2e-5
         self.eps = 1e-8
         self.max_grad_norm = 1.0
         self.warm_up_ratio = 0.08

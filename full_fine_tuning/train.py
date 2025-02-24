@@ -50,7 +50,6 @@ def train_epoch(model, optimizer, scheduler, train_dataloader, epoch):
         # 将训练数据拉入GPU
         input_ids = input_ids.to(param.device)
         labels = labels.to(param.device)
-
         outputs = model.forward(input_ids=input_ids, labels=labels)
         logits = outputs.logits
         loss = outputs.loss
@@ -114,7 +113,6 @@ def validate_epoch(model, validate_dataloader, epoch):
             labels = labels.to(param.device)
             outputs = model.forward(input_ids=input_ids, labels=labels)
 
-            logits = outputs.logits
             loss = outputs.loss
             loss = loss.mean()
 
@@ -181,7 +179,7 @@ def main():
 
     # 1. 加载模型
     try:
-        model = AutoModelForCausalLM.from_pretrained(param.qwen2, trust_remote_code=True).half().cuda()
+        model = AutoModelForCausalLM.from_pretrained(param.qwen2, trust_remote_code=True).to(param.device)
         logger.info("模型加载成功...")
     except Exception as e:
         logger.error(f"模型加载失败，错误信息：{e}")
