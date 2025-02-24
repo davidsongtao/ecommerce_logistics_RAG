@@ -56,33 +56,6 @@ class ModelConfig:
     cpu_memory_threshold: float = 0.30  # CPU空闲内存阈值(30%)
 
 
-@dataclass
-class EvaluationConfig:
-    """评估配置"""
-    # 评分权重
-    weights: Dict[str, float] = field(default_factory=lambda: {
-        "relevance": 0.20,
-        "coverage": 0.15,
-        "consistency": 0.15,
-        "fluency": 0.15,
-        "grammar": 0.15,
-        "diversity": 0.10,
-        "coherence": 0.10
-    })
-
-    # 评估阈值
-    thresholds: Dict[str, float] = field(default_factory=lambda: {
-        "min_total_score": 0.6,
-        "min_relevance": 0.7,
-        "min_coverage": 0.7,
-        "max_inference_time": 100,  # ms/token
-        "max_memory_usage": 16,  # GB
-        "max_gpu_memory": 12,  # GB
-        "min_throughput": 10,  # tokens/s
-        "max_latency": 1000  # ms
-    })
-
-
 class AppConfig:
     """应用配置管理器"""
     _instance = None
@@ -101,7 +74,6 @@ class AppConfig:
         # 子配置
         self.logging = LoggingConfig()
         self.model = ModelConfig()
-        self.evaluation = EvaluationConfig()
 
         # 加载环境变量
         self._load_env_vars()
