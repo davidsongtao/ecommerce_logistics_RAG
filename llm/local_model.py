@@ -142,11 +142,17 @@ class LocalLLM:
             self._check_resources()
 
             self.logger.info("加载模型...")
+            # 添加配置以禁用滑动窗口注意力
+            model_config = {
+                "trust_remote_code": True,
+                "torch_dtype": self.dtype,
+                "device_map": "auto" if self.device == "cuda" else None,
+                "use_sliding_window": False  # 禁用滑动窗口注意力
+            }
+
             self.model = AutoModelForCausalLM.from_pretrained(
                 self.model_path,
-                trust_remote_code=True,
-                torch_dtype=self.dtype,
-                device_map="auto" if self.device == "cuda" else None,
+                **model_config
             )
 
             self.logger.debug("调整token嵌入大小...")
