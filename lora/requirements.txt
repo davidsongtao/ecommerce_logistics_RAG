@@ -1,0 +1,6 @@
+conda install gcc_linux-64
+pip install mpi4py
+pip install optimum
+pip install auto-gptq
+pip install accelerate==0.27.2
+pip install transformers==4.32.0 tiktoken einops scipy transformers_stream_generator==0.0.4 peft deepspeed
