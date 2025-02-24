@@ -32,7 +32,7 @@ def load_dataset(dataset_path):
 
 def collate_fn(batch):
     input_ids = rnn.pad_sequence(batch, batch_first=True, padding_value=0)
-    labels = rnn.pad_sequence(batch, batch_first=True, padding_value=-100)
+    labels = rnn.pad_sequence(batch, batch_first=True, padding_value=param.ignore_index)
 
     return input_ids, labels
 
