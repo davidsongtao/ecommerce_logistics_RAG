@@ -16,7 +16,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStream
 
 from configs.config import config
 from configs.log_config import get_logger
-from exceptions import ModelLoadError, ModelGenerateError, ModelResourceError
+from llm.exceptions import ModelLoadError, ModelGenerateError, ModelResourceError
 
 
 class LocalLLM:
@@ -36,16 +36,20 @@ class LocalLLM:
             device: 设备类型 ('cpu', 'cuda', 'cuda:0' 等)
             dtype: 模型精度类型
         """
-        self.logger = get_logger("model")
-        self.model_path = model_path
-        self.device = device or config.model.device
-        self.dtype = dtype or config.model.dtype
+        self.logger = None
 
         try:
+            self.logger = get_logger("model")
+            self.model_path = model_path
+            self.device = device or config.model.device
+            self.dtype = dtype or config.model.dtype
+
             self.logger.info(f"初始化LocalLLM，模型路径: {model_path}")
             self._log_system_info()
             self._load_model()
         except Exception as e:
+            if self.logger:
+                self.logger.error(f"模型初始化失败: {str(e)}")
             raise ModelLoadError(
                 message=f"模型初始化失败: {str(e)}",
                 model_path=model_path,
@@ -277,9 +281,13 @@ class LocalLLM:
     def __del__(self):
         """清理资源"""
         try:
-            self.logger.info("清理模型资源...")
+            # 检查 logger 是否存在
+            if hasattr(self, 'logger') and self.logger:
+                self.logger.info("清理模型资源...")
             # 清理 CUDA 缓存
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
         except Exception as e:
-            self.logger.error(f"清理过程错误: {str(e)}")
+            # 只在 logger 存在时记录错误
+            if hasattr(self, 'logger') and self.logger:
+                self.logger.error(f"清理过程错误: {str(e)}")

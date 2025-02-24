@@ -22,14 +22,14 @@ def main():
     try:
 
         model_path = "/root/autodl-tmp/ecommerce_logistics_RAG/models/DeepSeek_R1_Distill_Qwen_7B" if os.name == 'posix' else r"D:\ecommerce_logistics_RAG\models\DeepSeek_R1_Distill_Qwen_1_5B"
-        llm = LocalLLM(model_path, show_log=False)
+        llm = LocalLLM(model_path)
         while True:
             prompt = input("User >>> :")
             print(f"User >>> : {prompt}")
             print("Assistant: ", end="", flush=True)
 
             # 流式输出测试
-            for text in llm.generate_stream(prompt):
+            for text in llm.generate(prompt, stream=True):
                 print(text, end="", flush=True)
                 sys.stdout.flush()
                 time.sleep(0.02)
