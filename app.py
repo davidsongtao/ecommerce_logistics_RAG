@@ -21,7 +21,7 @@ from llm.local_model import LocalLLM
 def main():
     try:
 
-        model_path = "/root/autodl-tmp/ecommerce_logistics_RAG/models/DeepSeek_R1_Distill_Qwen_7B" if os.name == 'posix' else r"D:\ecommerce_logistics_RAG\models\DeepSeek_R1_Distill_Qwen_1_5B"
+        model_path = r"D:\ecommerce_logistics_RAG\models\saved_models\min_ppl_model_bj"
         llm = LocalLLM(model_path)
         while True:
             prompt = input("User >>> :")

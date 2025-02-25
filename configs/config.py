@@ -46,9 +46,9 @@ class ModelConfig:
     generation_params: Dict[str, Any] = field(default_factory=lambda: {
         "max_new_tokens": 2048,
         "do_sample": True,
-        "temperature": 0.6,
-        "top_p": 0.95,
-        "repetition_penalty": 1.1,
+        "temperature": 0.1,
+        "top_p": 0.5,
+        "repetition_penalty": 1.6,
     })
 
     # 资源阈值
