@@ -53,12 +53,11 @@ def convert_samples(samples: dict, tokenizer, max_source_seq_len: int, max_targe
 
             tokenized_output['input_ids'].append(input_ids)
             tokenized_output['labels'].append(labels)
-            print(f"input_ids --> {input_ids}")
-            print(f"input_ids_length --> {len(input_ids)}")
-            print(f"labels --> {labels}")
-            print(f"labels_length --> {len(labels)}")
+            # print(f"input_ids --> {input_ids}")
+            # print(f"input_ids_length --> {len(input_ids)}")
+            # print(f"labels --> {labels}")
+            # print(f"labels_length --> {len(labels)}")
 
-            break
 
         except Exception as e:
             print(e)

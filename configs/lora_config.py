@@ -13,3 +13,4 @@ class LoraConfig:
     def __init__(self):
         self.train_dataset = r"D:\ecommerce_logistics_RAG\dataset\ChatGLM_6B\train_data.json"
         self.valid_dataset = r"D:\ecommerce_logistics_RAG\dataset\ChatGLM_6B\valid_data.json"
+        self.batch_size = 1
